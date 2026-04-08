@@ -5,7 +5,7 @@ import time
 # ---------------- Configuration ----------------
 RADXA_IPv4 = "192.168.1.69"
 PORT = 5005
-NEUTRAL_DATA = "1500/1500/1500/1500/1500/1500/0"
+NEUTRAL_DATA = "1500/1500/1500/1500/1500/1500/1500/1500/0/0"
 
 # ---------------- Setup UDP ----------------
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -31,26 +31,66 @@ def get_thruster_data():
     pygame.event.pump()
 
     # Axes
-    left_y = -joystick.get_axis(1)  # Forward/back
-    left_x = joystick.get_axis(0)   # Left/right
+    left_y = -joystick.get_axis(1)   # surge (forward/back)
+    left_x = joystick.get_axis(0)    # yaw
+    right_x = joystick.get_axis(2)   # sway
+    right_y = -joystick.get_axis(3)  # heave
 
-    # Apply deadzone
-    if abs(left_y) < DEADZONE:
-        left_y = 0
-    if abs(left_x) < DEADZONE:
-        left_x = 0
+    # Triggers
+    rt = (joystick.get_axis(5) + 1) / 2
+    lt = (joystick.get_axis(4) + 1) / 2
 
-    # Mapping logic
-    if left_y > 0.5:
-        return "1500/1500/1500/1500/1580/1580/0"  # Forward (W)
-    elif left_y < -0.5:
-        return "1600/1500/1500/1500/1420/1420/0"  # Backward (S)
-    elif left_x < -0.5:
-        return "1650/1650/1650/1650/1500/1500/0"  # Left (Q)
-    elif left_x > 0.5:
-        return "1350/1350/1350/1350/1500/1500/0"  # Right (E)
-    else:
-        return NEUTRAL_DATA
+    # Deadzone
+    if abs(left_y) < DEADZONE: left_y = 0
+    if abs(left_x) < DEADZONE: left_x = 0
+    if abs(right_x) < DEADZONE: right_x = 0
+    if abs(right_y) < DEADZONE: right_y = 0
+
+    # Combine heave
+    heave = right_y + (rt - lt)
+
+    # Base PWM
+    base = 1500
+    scale = 300
+
+    # -------- THRUSTER MIXING --------
+    # Horizontal (FL, FR, BL, BR)
+    FL = base + scale*(left_y + left_x)
+    FR = base + scale*(left_y - left_x)
+    BL = base + scale*(left_y + left_x)
+    BR = base + scale*(left_y - left_x)
+
+    # Vertical (heave)
+    H1 = base + scale*heave
+    H2 = base + scale*heave
+    H3 = base + scale*heave
+    H4 = base + scale*heave
+
+    # Sway
+    SW1 = base + scale*(right_x)
+    SW2 = base - scale*(right_x)
+
+    # Clamp
+    def clamp(v): return int(max(1100, min(1900, v)))
+
+    FL, FR, BL, BR = map(clamp, [FL, FR, BL, BR])
+    H1, H2, H3, H4 = map(clamp, [H1, H2, H3, H4])
+    SW1, SW2 = map(clamp, [SW1, SW2])
+
+    # -------- SERVO --------
+    servo = 0
+    if joystick.get_button(3):  # Y button
+        servo = 180
+
+    # -------- LIGHT --------
+    light = 1 if joystick.get_button(0) else 0  # A button
+
+    # -------- FINAL FORMAT --------
+    return (
+        f"{H1}/{H2}/{FL}/{FR}/"
+        f"{H3}/{H4}/{SW1}/{SW2}/"
+        f"{servo}/{light}"
+    )
 
 print("Xbox controller mode started. Ctrl+C to stop.")
 
