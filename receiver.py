@@ -3,8 +3,8 @@ import pygame
 import time
 
 # ---------------- Configuration ----------------
-RADXA_IPv4 = "192.168.1.69"
-PORT = 5005
+RADXA_IPv4 = "192.168.144.20"
+PORT = 8080
 NEUTRAL_DATA = "1500/1500/1500/1500/1500/1500/1500/1500/0/0"
 
 # ---------------- Setup UDP ----------------
